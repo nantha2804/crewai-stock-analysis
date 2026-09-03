@@ -12,5 +12,5 @@ def run(stock: str):
 
 
 if __name__ == "__main__":
-    run("MSFT")
+    run("HCLTECH")
 
