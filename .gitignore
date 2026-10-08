@@ -8,3 +8,6 @@ __pycache__/
 .vscode/
 .idea/
 *.log
+.venv/
+.gradio/
+venv/
