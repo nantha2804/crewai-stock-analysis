@@ -3,3 +3,4 @@ crewai-tools
 python-dotenv
 yfinance
 gradio==6.29.1
+litellm
