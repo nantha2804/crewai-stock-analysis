@@ -1,4 +1,6 @@
-from crewai import Agent, LLM
+﻿from crewai import Agent, LLM
+
+from tools.stock_research_tool import get_stock_price
 
 llm = LLM(
     model="groq/openai/gpt-oss-20b",
@@ -7,16 +9,19 @@ llm = LLM(
 
 trader_agent = Agent(
     role="Strategic Stock Trader",
-    goal = (
-        "Decide whether to Buy, Sell, or Hold a given stock based on live market data, "
-        "price movements, and financial analysis with the available data."
+    goal=(
+        "Make a careful Buy, Sell, or Hold assessment using the "
+        "available market data and financial analysis."
     ),
-    backstory = (
-        "You are a strategic trader with years of experience in timing market entry and exit points. "
-        "You rely on real-time stock data, daily price movements, and volume trends to make trading decisions "
-        "that optimize returns and reduce risk."
+    backstory=(
+        "You are a disciplined stock trader. You evaluate price changes, "
+        "trading volume, and recent momentum. You must use the Live Stock "
+        "Information Tool to retrieve market data before making a decision. "
+        "Never invent missing prices or indicators. Explain uncertainty "
+        "and remember that your output is informational, not a guarantee "
+        "of future returns."
     ),
+    tools=[get_stock_price],
     llm=llm,
-    tools=[],
     verbose=True
 )

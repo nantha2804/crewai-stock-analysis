@@ -1,32 +1,78 @@
-import yfinance as yf
+﻿import yfinance as yf
 from crewai.tools import tool
 
 
 @tool("Live Stock Information Tool")
 def get_stock_price(stock_symbol: str) -> str:
-    """
-    Retrieves the latest stock price and other relevant info for a given stock symbol using Yahoo Finance.
+    """Retrieve the latest available price, daily change, and trading volume from Yahoo Finance."""
 
-    Parameters:
-        stock_symbol (str): The ticker symbol of the stock (e.g., AAPL, TSLA, MSFT).
+    try:
+        symbol = stock_symbol.strip().upper()
+        stock = yf.Ticker(symbol)
 
-    Returns:
-        str: A summary of the stock's current price, daily change, and other key data.
-    """
+        intraday = stock.history(period="1d", interval="5m")
+        daily = stock.history(period="5d", interval="1d")
 
-    stock = yf.Ticker(stock_symbol)
-    info = stock.info
+        if intraday.empty and daily.empty:
+            return (
+                f"No market data returned for {symbol}. "
+                "Check the ticker symbol or Yahoo Finance availability."
+            )
 
-    current_price = info.get("regularMarketPrice")
-    change = info.get("regularMarketChange")
-    change_percent = info.get("regularMarketChangePercent")
-    currency = info.get("currency", "USD")
+        if not daily.empty:
+            latest_daily = daily.iloc[-1]
+            latest_date = daily.index[-1].date()
 
-    if current_price is None:
-        return f"Could not fetch price for {stock_symbol}. Please check the symbol."
+            if len(daily) >= 2:
+                previous_close = float(daily.iloc[-2]["Close"])
+            else:
+                previous_close = None
+        else:
+            latest_daily = None
+            latest_date = None
+            previous_close = None
 
-    return (
-        f"Stock: {stock_symbol.upper()}\n"
-        f"Price: {current_price} {currency}\n"
-        f"Change: {change} ({round(change_percent, 2)}%)"
-    )
+        if not intraday.empty:
+            latest = intraday.iloc[-1]
+            current_price = float(latest["Close"])
+            volume = int(latest["Volume"])
+            price_time = str(intraday.index[-1])
+        else:
+            current_price = float(latest_daily["Close"])
+            volume = int(latest_daily["Volume"])
+            price_time = str(daily.index[-1])
+
+        if latest_date is not None and not intraday.empty:
+            if intraday.index[-1].date() != latest_date:
+                current_price = float(latest_daily["Close"])
+                volume = int(latest_daily["Volume"])
+                price_time = str(daily.index[-1])
+
+        if previous_close is not None and previous_close != 0:
+            change = current_price - previous_close
+            change_percent = (change / previous_close) * 100
+            change_text = (
+                f"{change:+.2f} ({change_percent:+.2f}%)"
+            )
+        else:
+            change_text = "Unavailable (insufficient daily history)"
+
+        try:
+            currency = stock.fast_info.get("currency") or "INR"
+        except Exception:
+            currency = "INR"
+
+        return (
+            f"Symbol: {symbol}\n"
+            f"Latest available price: {current_price:.2f} {currency}\n"
+            f"Change from previous close: {change_text}\n"
+            f"Latest reported volume: {volume:,}\n"
+            f"Price timestamp: {price_time}\n"
+            "Source: Yahoo Finance. Data availability and timing may vary."
+        )
+
+    except Exception as exc:
+        return (
+            f"Yahoo Finance lookup failed for {stock_symbol}: "
+            f"{type(exc).__name__}: {exc}"
+        )
