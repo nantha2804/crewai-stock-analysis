@@ -15,40 +15,50 @@ COMPANIES_FILE = PROJECT_DIR / "companies.csv"
 def load_companies():
     companies = {}
 
-    with open(COMPANIES_FILE, "r", encoding="utf-8") as file:
+    with COMPANIES_FILE.open("r", encoding="utf-8-sig", newline="") as file:
         reader = csv.DictReader(file)
 
-        for row in reader:
-            company = row["company"].strip()
-            symbol = row["symbol"].strip()
-            sector = row["sector"].strip()
+        required_columns = {"company", "symbol", "sector"}
+        actual_columns = set(reader.fieldnames or [])
 
-            if company:
+        if not required_columns.issubset(actual_columns):
+            raise ValueError(
+                "companies.csv must contain: company, symbol, sector"
+            )
+
+        for row in reader:
+            company = (row.get("company") or "").strip()
+            symbol = (row.get("symbol") or "").strip()
+            sector = (row.get("sector") or "").strip()
+
+            if company and symbol:
                 companies[company] = {
                     "symbol": symbol,
-                    "sector": sector,
+                    "sector": sector or "Not specified",
                 }
 
     return companies
 
 
-# Sort company names alphabetically: A → Z
 companies = load_companies()
 company_names = sorted(companies.keys(), key=str.casefold)
 
 
 def analyze_stock(company_name):
     if not company_name:
-        return "## ⚠️ Please select a company."
+        return "## Please select a company first."
 
     company = companies.get(company_name)
 
     if not company:
-        return "## ⚠️ Invalid company selection."
+        return "## Invalid company selection."
 
     symbol = company["symbol"]
     sector = company["sector"]
-    yahoo_symbol = f"{symbol}.NS"
+
+    yahoo_symbol = (
+        symbol if symbol.endswith(".NS") else f"{symbol}.NS"
+    )
 
     try:
         result = stock_crew.kickoff(
@@ -56,84 +66,62 @@ def analyze_stock(company_name):
         )
 
         return (
-            f"# 📈 {company_name}\n\n"
-            f"**Sector:** {sector}  \n"
+            f"# {company_name}\n\n"
+            f"**Sector:** {sector}\n\n"
             f"**NSE Symbol:** `{yahoo_symbol}`\n\n"
-            f"---\n\n"
-            f"# 🤖 AI Stock Analysis\n\n"
+            "---\n\n"
+            "## AI Stock Analysis\n\n"
             f"{result}"
         )
 
-    except Exception as e:
+    except Exception as error:
+        print(
+            f"Stock analysis failed for {yahoo_symbol}: "
+            f"{type(error).__name__}: {error}"
+        )
+
         return (
-            f"# ❌ Analysis Error\n\n"
-            f"Unable to analyze **{company_name}**.\n\n"
-            f"```text\n{e}\n```"
+            "## Stock analysis failed\n\n"
+            "Please check the PowerShell terminal for the error "
+            "and verify your API configuration."
         )
 
 
-# Keep the page layout left-to-right
-css = """
-.gradio-container {
-    direction: ltr;
-}
-"""
-
-
 with gr.Blocks(
-    title="AI Stock Analysis System"
+    theme=gr.themes.Soft(),
+    title="AI Stock Analysis"
 ) as app:
 
     gr.Markdown(
         """
-        # 📈 AI Stock Analysis System
+        # AI Stock Analysis System
 
-        ### Multi-Agent Stock Analysis powered by CrewAI
-
-        Select an NSE-listed company to analyze its market
-        information and generate an AI-powered
-        **Buy / Sell / Hold recommendation**.
+        Analyze NSE-listed companies using your CrewAI
+        multi-agent stock analyst and trader.
         """
     )
 
     with gr.Row():
+        company_dropdown = gr.Dropdown(
+            choices=company_names,
+            value=None,
+            label="Select Company",
+            info="Choose an NSE-listed company."
+        )
 
-        with gr.Column(scale=3):
-
-            company_dropdown = gr.Dropdown(
-                choices=company_names,
-                label="🏢 Select Company",
-                value=None,
-                info="Choose an NSE-listed company (A → Z)",
-                type="value"
-            )
-
-        with gr.Column(scale=1):
-
-            analyze_button = gr.Button(
-                "🔍 Analyze Stock",
-                variant="primary",
-                size="lg"
-            )
+        analyze_button = gr.Button(
+            "Analyze Stock",
+            variant="primary"
+        )
 
     gr.Markdown("---")
-
-    gr.Markdown(
-        """
-        ## 📊 Analysis Result
-
-        Your multi-agent analysis will appear below.
-        """
-    )
+    gr.Markdown("## Analysis Result")
 
     result = gr.Markdown(
-        value="""
-        ### 👋 Ready to Analyze
-
-        1. Select a company from the dropdown.
-        2. Click **Analyze Stock**.
-        3. View the CrewAI analysis below.
-        """,
+        value=(
+            "Select a company and click **Analyze Stock** "
+            "to begin your analysis."
+        ),
         container=True
     )
 
@@ -148,8 +136,5 @@ with gr.Blocks(
 if __name__ == "__main__":
     app.launch(
         server_name="0.0.0.0",
-        server_port=int(os.environ.get("PORT", 7860)),
-        theme=gr.themes.Soft(),
-        css=css
+        server_port=int(os.environ.get("PORT", 7860))
     )
-
